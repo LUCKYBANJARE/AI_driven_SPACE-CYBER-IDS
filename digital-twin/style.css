@@ -1,0 +1,49 @@
+body{
+
+  margin:0;
+  overflow:hidden;
+  background:black;
+  font-family:monospace;
+
+}
+
+canvas{
+  display:block;
+}
+
+#hud{
+
+  position:absolute;
+  top:15px;
+  left:15px;
+
+  z-index:100;
+
+  color:#00ffff;
+
+  background:rgba(0,0,0,0.55);
+
+  padding:18px;
+
+  border:1px solid #00ffff;
+
+  width:320px;
+
+  backdrop-filter:blur(5px);
+
+}
+
+.title{
+
+  font-size:22px;
+  font-weight:bold;
+  margin-bottom:15px;
+
+}
+
+#telemetry{
+
+  font-size:13px;
+  line-height:1.6;
+
+}

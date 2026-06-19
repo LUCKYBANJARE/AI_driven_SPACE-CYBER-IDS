@@ -1,0 +1,2600 @@
+<!-- <!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Space Digital Twin</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Cesium.js"></script>
+
+<link
+href="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Widgets/widgets.css"
+rel="stylesheet"
+/>
+
+<style>
+
+html, body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:black;
+    font-family:Arial;
+}
+
+#cesiumContainer{
+    width:100%;
+    height:100%;
+}
+
+#dashboard{
+
+    position:absolute;
+    top:10px;
+    left:10px;
+
+    width:380px;
+    max-height:95vh;
+
+    overflow-y:auto;
+
+    background:rgba(0,0,0,0.82);
+
+    padding:15px;
+
+    border-radius:12px;
+
+    color:white;
+
+    z-index:999;
+
+    border:1px solid cyan;
+}
+
+.card{
+
+    background:rgba(255,255,255,0.05);
+
+    padding:10px;
+
+    border-radius:10px;
+
+    margin-bottom:12px;
+}
+
+.alert{
+    color:#ff5c5c;
+}
+
+.success{
+    color:#00ff99;
+}
+
+.warning{
+    color:orange;
+}
+
+.title{
+    color:cyan;
+}
+
+.metric{
+    font-size:14px;
+    margin-top:5px;
+}
+
+#status{
+    font-size:18px;
+    font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="dashboard">
+
+    <h2 class="title">🌍 Space Digital Twin</h2>
+
+    <div class="card">
+        <div id="time"></div>
+        <div id="status"></div>
+    </div>
+
+    <div class="card">
+        <h3>🚀 Space Traffic Prediction</h3>
+        <div id="collisions"></div>
+    </div>
+
+    <div class="card">
+        <h3>🛡️ Cyber Intrusion Detection</h3>
+        <div id="cyber"></div>
+    </div>
+
+    <div class="card">
+        <h3>🌌 Congestion Forecasting</h3>
+        <div id="congestion"></div>
+    </div>
+
+    <div class="card">
+        <h3>🤖 Autonomous Maneuver</h3>
+        <div id="maneuver"></div>
+    </div>
+
+    <div class="card">
+        <h3>📊 Live Analytics</h3>
+        <div id="analytics"></div>
+    </div>
+
+</div>
+
+<script>
+
+// =====================================================
+// VERY IMPORTANT FIX
+// =====================================================
+
+window.CESIUM_BASE_URL =
+"https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/";
+
+// =====================================================
+// CESIUM TOKEN
+// =====================================================
+
+Cesium.Ion.defaultAccessToken =
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMGFkN2UyZS05NThiLTQ1NDEtYmM1Mi0zY2RhNTk4YmMxYjUiLCJpZCI6NDMyNjc4LCJpc3MiOiJodHRwczovL2lvbi5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3NzkwMzA2NDB9.j8Q3Wdu4mqrdkycc1GQS4oho9O9xFZu2LPbPWwKsQ4o';
+
+// =====================================================
+// CREATE VIEWER
+// =====================================================
+
+const viewer = new Cesium.Viewer('cesiumContainer', {
+
+    animation:false,
+    timeline:false,
+    baseLayerPicker:false,
+    geocoder:false,
+    homeButton:false,
+    sceneModePicker:false,
+    navigationHelpButton:false,
+    fullscreenButton:false,
+    infoBox:false,
+    selectionIndicator:false,
+
+    imageryProvider:false,
+
+    baseLayer:false
+});
+
+// =====================================================
+// EARTH TEXTURE FIX
+// =====================================================
+
+viewer.imageryLayers.addImageryProvider(
+
+    new Cesium.UrlTemplateImageryProvider({
+
+        url:
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+
+    })
+
+);
+
+// =====================================================
+// STABLE SCENE SETTINGS
+// =====================================================
+
+viewer.scene.globe.enableLighting = true;
+
+viewer.scene.skyAtmosphere.show = true;
+
+viewer.scene.fog.enabled = false;
+
+viewer.scene.globe.baseColor =
+Cesium.Color.BLACK;
+
+// REMOVE CESIUM CREDITS
+viewer.cesiumWidget.creditContainer.style.display = "none";
+
+// CAMERA
+viewer.camera.setView({
+
+    destination:
+    new Cesium.Cartesian3(
+        25000000,
+        25000000,
+        25000000
+    )
+});
+
+// =====================================================
+// SAT STORAGE
+// =====================================================
+
+const satelliteEntities = {};
+
+// =====================================================
+// CREATE / UPDATE SATELLITE
+// =====================================================
+
+function updateSatellite(name, x, y, z, danger=false){
+
+    if(!satelliteEntities[name]){
+
+        satelliteEntities[name] = viewer.entities.add({
+
+            id:name,
+
+            position:new Cesium.Cartesian3(x,y,z),
+
+            point:{
+
+                pixelSize: danger ? 12 : 7,
+
+                color: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN,
+
+                outlineColor: Cesium.Color.WHITE,
+
+                outlineWidth:2
+            },
+
+            label:{
+
+                text:name,
+
+                font:'11px monospace',
+
+                fillColor: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN,
+
+                outlineColor:Cesium.Color.BLACK,
+
+                outlineWidth:2,
+
+                style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+
+                pixelOffset:new Cesium.Cartesian2(0,-20),
+
+                scale:0.6
+            }
+        });
+
+    }else{
+
+        satelliteEntities[name].position =
+        new Cesium.Cartesian3(x,y,z);
+
+        satelliteEntities[name].point.color =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN;
+
+        satelliteEntities[name].label.fillColor =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN;
+    }
+}
+
+// =====================================================
+// WEBSOCKET
+// =====================================================
+
+const socket =
+new WebSocket("ws://localhost:8000/ws");
+
+socket.onopen = () => {
+
+    console.log("WebSocket Connected");
+};
+
+socket.onerror = (err) => {
+
+    console.log("WebSocket Error", err);
+};
+
+socket.onclose = () => {
+
+    console.log("WebSocket Closed");
+};
+
+// =====================================================
+// RECEIVE DATA
+// =====================================================
+
+socket.onmessage = function(event){
+
+    try{
+
+        const data = JSON.parse(event.data);
+
+        // TIME
+        document.getElementById("time").innerHTML =
+        `⏱️ ${data.timestamp}`;
+
+        // STATUS
+        let statusColor = "lime";
+
+        if(data.digital_twin_status === "CRITICAL"){
+            statusColor = "red";
+        }
+        else if(data.digital_twin_status === "WARNING"){
+            statusColor = "orange";
+        }
+
+        document.getElementById("status").innerHTML = `
+            <span style="color:${statusColor}">
+            System Status :
+            ${data.digital_twin_status}
+            </span>
+        `;
+
+        // =================================================
+        // SATELLITES
+        // =================================================
+
+        data.satellites.forEach(sat => {
+
+            const x = sat.position[0] * 1000;
+            const y = sat.position[1] * 1000;
+            const z = sat.position[2] * 1000;
+
+            let danger = false;
+
+            data.collision_alerts.forEach(c => {
+
+                if(
+                    c.sat1 === sat.name ||
+                    c.sat2 === sat.name
+                ){
+                    danger = true;
+                }
+            });
+
+            updateSatellite(
+                sat.name,
+                x,
+                y,
+                z,
+                danger
+            );
+        });
+
+        // =================================================
+        // COLLISIONS
+        // =================================================
+
+        let collisionHTML = "";
+
+        data.collision_alerts.forEach(c => {
+
+            collisionHTML += `
+                <div class='alert'>
+                ⚠️ ${c.sat1}<br>
+                ⚠️ ${c.sat2}<br>
+                Distance : ${c.distance} km<br>
+                Risk : ${c.risk}
+                </div><br>
+            `;
+        });
+
+        if(data.collision_alerts.length === 0){
+
+            collisionHTML =
+            "<div class='success'>No Collision Risk</div>";
+        }
+
+        document.getElementById("collisions").innerHTML =
+        collisionHTML;
+
+        // =================================================
+        // CYBER
+        // =================================================
+
+        document.getElementById("cyber").innerHTML = `
+
+            <div class='metric'>
+            Attack :
+            ${data.cyber_alert.attack_detected}
+            </div>
+
+            <div class='metric'>
+            Type :
+            ${data.cyber_alert.attack_type}
+            </div>
+
+            <div class='metric'>
+            Severity :
+            ${data.cyber_alert.severity}/10
+            </div>
+
+            <div class='metric'>
+            Health :
+            ${data.cyber_alert.network_health}%
+            </div>
+        `;
+
+        // =================================================
+        // CONGESTION
+        // =================================================
+
+        document.getElementById("congestion").innerHTML = `
+
+            <div class='metric'>
+            Level :
+            ${data.congestion.congestion_level}
+            </div>
+
+            <div class='metric'>
+            Density :
+            ${data.congestion.orbital_density}
+            </div>
+
+            <div class='metric'>
+            Risk :
+            ${data.congestion.future_risk}
+            </div>
+        `;
+
+        // =================================================
+        // MANEUVER
+        // =================================================
+
+        document.getElementById("maneuver").innerHTML = `
+
+            <div class='metric'>
+            Action :
+            ${data.maneuver.recommended_action}
+            </div>
+
+            <div class='metric'>
+            Delta-V :
+            ${data.maneuver.delta_v}
+            </div>
+
+            <div class='metric'>
+            Fuel :
+            ${data.maneuver.fuel_cost}
+            </div>
+
+            <div class='metric'>
+            Success :
+            ${data.maneuver.success_probability}
+            </div>
+        `;
+
+        // =================================================
+        // ANALYTICS
+        // =================================================
+
+        const latestCollision =
+        data.analytics.collision_history.slice(-1)[0] || 0;
+
+        const latestCongestion =
+        data.analytics.congestion_history.slice(-1)[0] || 0;
+
+        const latestCyber =
+        data.analytics.cyber_history.slice(-1)[0] || 0;
+
+        document.getElementById("analytics").innerHTML = `
+
+            <div class='metric'>
+            Collision Alerts :
+            ${latestCollision}
+            </div>
+
+            <div class='metric'>
+            Orbital Density :
+            ${latestCongestion}
+            </div>
+
+            <div class='metric'>
+            Cyber Severity :
+            ${latestCyber}
+            </div>
+        `;
+
+    }catch(err){
+
+        console.log("Render Error :", err);
+    }
+};
+
+</script>
+
+</body>
+</html> -->
+
+
+
+
+
+
+
+
+<!--IND   TESTTTINGNN 11111111111111111111111---SUCCEEFUL -- with self movement trajectory making>-->
+
+<!-- <!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Space Digital Twin</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Cesium.js"></script>
+
+<link
+href="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Widgets/widgets.css"
+rel="stylesheet"
+/>
+
+<style>
+
+html, body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:black;
+    font-family:Arial;
+}
+
+#cesiumContainer{
+    width:100%;
+    height:100%;
+}
+
+#dashboard{
+
+    position:absolute;
+    top:10px;
+    left:10px;
+
+    width:380px;
+    max-height:95vh;
+
+    overflow-y:auto;
+
+    background:rgba(0,0,0,0.82);
+
+    padding:15px;
+
+    border-radius:12px;
+
+    color:white;
+
+    z-index:999;
+
+    border:1px solid cyan;
+}
+
+.card{
+
+    background:rgba(255,255,255,0.05);
+
+    padding:10px;
+
+    border-radius:10px;
+
+    margin-bottom:12px;
+}
+
+.alert{
+    color:#ff5c5c;
+}
+
+.success{
+    color:#00ff99;
+}
+
+.warning{
+    color:orange;
+}
+
+.title{
+    color:cyan;
+}
+
+.metric{
+    font-size:14px;
+    margin-top:5px;
+}
+
+#status{
+    font-size:18px;
+    font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="dashboard">
+
+    <h2 class="title">🌍 Space Digital Twin</h2>
+
+    <div class="card">
+        <div id="time"></div>
+        <div id="status"></div>
+    </div>
+
+    <div class="card">
+        <h3>🚀 Space Traffic Prediction</h3>
+        <div id="collisions"></div>
+    </div>
+
+    <div class="card">
+        <h3>🛡️ Cyber Intrusion Detection</h3>
+        <div id="cyber"></div>
+    </div>
+
+    <div class="card">
+        <h3>🌌 Congestion Forecasting</h3>
+        <div id="congestion"></div>
+    </div>
+
+    <div class="card">
+        <h3>🤖 Autonomous Maneuver</h3>
+        <div id="maneuver"></div>
+    </div>
+
+    <div class="card">
+        <h3>📊 Live Analytics</h3>
+        <div id="analytics"></div>
+    </div>
+
+</div>
+
+<script>
+
+// =====================================================
+// CESIUM CONFIG
+// =====================================================
+
+window.CESIUM_BASE_URL =
+"https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/";
+
+Cesium.Ion.defaultAccessToken =
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMGFkN2UyZS05NThiLTQ1NDEtYmM1Mi0zY2RhNTk4YmMxYjUiLCJpZCI6NDMyNjc4LCJpc3MiOiJodHRwczovL2lvbi5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3NzkwMzA2NDB9.j8Q3Wdu4mqrdkycc1GQS4oho9O9xFZu2LPbPWwKsQ4o';
+
+
+// =====================================================
+// VIEWER
+// =====================================================
+
+const viewer = new Cesium.Viewer('cesiumContainer', {
+
+    animation:false,
+    timeline:false,
+    baseLayerPicker:false,
+    geocoder:false,
+    homeButton:false,
+    sceneModePicker:false,
+    navigationHelpButton:false,
+    fullscreenButton:false,
+    infoBox:false,
+    selectionIndicator:false
+});
+
+// =====================================================
+// REALISTIC EARTH
+// =====================================================
+
+viewer.scene.globe.enableLighting = true;
+
+viewer.scene.skyAtmosphere.show = true;
+
+viewer.scene.fog.enabled = false;
+
+viewer.scene.globe.depthTestAgainstTerrain = true;
+
+viewer.cesiumWidget.creditContainer.style.display = "none";
+
+// CAMERA POSITION
+
+viewer.camera.setView({
+
+    destination:
+    new Cesium.Cartesian3(
+        25000000,
+        25000000,
+        25000000
+    )
+});
+
+// =====================================================
+// STAR BACKGROUND
+// =====================================================
+
+viewer.scene.skyBox.show = true;
+
+// =====================================================
+// STORAGE
+// =====================================================
+
+const satelliteEntities = {};
+const orbitPaths = {};
+
+// =====================================================
+// SATELLITE UPDATE
+// =====================================================
+
+function updateSatellite(name, x, y, z, danger=false){
+
+    const position =
+    new Cesium.Cartesian3(x, y, z);
+
+    // =================================================
+    // STORE PATH HISTORY
+    // =================================================
+
+    if(!orbitPaths[name]){
+        orbitPaths[name] = [];
+    }
+
+    orbitPaths[name].push(position);
+
+    // limit orbit trail length
+    if(orbitPaths[name].length > 120){
+        orbitPaths[name].shift();
+    }
+
+    // =================================================
+    // CREATE ENTITY
+    // =================================================
+
+    if(!satelliteEntities[name]){
+
+        satelliteEntities[name] = viewer.entities.add({
+
+            id:name,
+
+            position:position,
+
+            point:{
+
+                pixelSize: danger ? 11 : 6,
+
+                color: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN,
+
+                outlineColor: Cesium.Color.WHITE,
+
+                outlineWidth:2
+            },
+
+            label:{
+
+                text:name,
+
+                font:'11px monospace',
+
+                fillColor: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN,
+
+                outlineColor:Cesium.Color.BLACK,
+
+                outlineWidth:2,
+
+                style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+
+                pixelOffset:new Cesium.Cartesian2(0,-20),
+
+                scale:0.6
+            },
+
+            // =================================================
+            // ORBIT LINE
+            // =================================================
+
+            polyline:{
+
+                positions:new Cesium.CallbackProperty(
+                    function(){
+                        return orbitPaths[name];
+                    },
+                    false
+                ),
+
+                width:2,
+
+                material: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN.withAlpha(0.7)
+            }
+        });
+
+    }else{
+
+        satelliteEntities[name].position = position;
+
+        satelliteEntities[name].point.color =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN;
+
+        satelliteEntities[name].label.fillColor =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN;
+
+        satelliteEntities[name].polyline.material =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN.withAlpha(0.7);
+    }
+}
+
+// =====================================================
+// WEBSOCKET
+// =====================================================
+
+const socket =
+new WebSocket("ws://localhost:8000/ws");
+
+socket.onopen = () => {
+
+    console.log("WebSocket Connected");
+};
+
+socket.onerror = (err) => {
+
+    console.log("WebSocket Error", err);
+};
+
+socket.onclose = () => {
+
+    console.log("WebSocket Closed");
+};
+
+// =====================================================
+// RECEIVE DATA
+// =====================================================
+
+socket.onmessage = function(event){
+
+    try{
+
+        const data = JSON.parse(event.data);
+
+        // =================================================
+        // TIME
+        // =================================================
+
+        document.getElementById("time").innerHTML =
+        `⏱️ ${data.timestamp}`;
+
+        // =================================================
+        // STATUS
+        // =================================================
+
+        let statusColor = "lime";
+
+        if(data.digital_twin_status === "CRITICAL"){
+            statusColor = "red";
+        }
+        else if(data.digital_twin_status === "WARNING"){
+            statusColor = "orange";
+        }
+
+        document.getElementById("status").innerHTML = `
+            <span style="color:${statusColor}">
+            System Status :
+            ${data.digital_twin_status}
+            </span>
+        `;
+
+        // =================================================
+        // SATELLITE RENDERING
+        // =================================================
+
+        data.satellites.forEach(sat => {
+
+            const x = sat.position[0] * 1000;
+            const y = sat.position[1] * 1000;
+            const z = sat.position[2] * 1000;
+
+            let danger = false;
+
+            data.collision_alerts.forEach(c => {
+
+                if(
+                    c.sat1 === sat.name ||
+                    c.sat2 === sat.name
+                ){
+                    danger = true;
+                }
+            });
+
+            updateSatellite(
+                sat.name,
+                x,
+                y,
+                z,
+                danger
+            );
+        });
+
+        // =================================================
+        // COLLISION INFO
+        // =================================================
+
+        let collisionHTML = "";
+
+        data.collision_alerts.forEach(c => {
+
+            collisionHTML += `
+                <div class='alert'>
+                ⚠️ ${c.sat1}<br>
+                ⚠️ ${c.sat2}<br>
+                Distance : ${c.distance} km<br>
+                Risk : ${c.risk}
+                </div><br>
+            `;
+        });
+
+        if(data.collision_alerts.length === 0){
+
+            collisionHTML =
+            "<div class='success'>No Collision Risk</div>";
+        }
+
+        document.getElementById("collisions").innerHTML =
+        collisionHTML;
+
+        // =================================================
+        // CYBER
+        // =================================================
+
+        document.getElementById("cyber").innerHTML = `
+
+            <div class='metric'>
+            Attack :
+            ${data.cyber_alert.attack_detected}
+            </div>
+
+            <div class='metric'>
+            Type :
+            ${data.cyber_alert.attack_type}
+            </div>
+
+            <div class='metric'>
+            Severity :
+            ${data.cyber_alert.severity}/10
+            </div>
+
+            <div class='metric'>
+            Health :
+            ${data.cyber_alert.network_health}%
+            </div>
+        `;
+
+        // =================================================
+        // CONGESTION
+        // =================================================
+
+        document.getElementById("congestion").innerHTML = `
+
+            <div class='metric'>
+            Level :
+            ${data.congestion.congestion_level}
+            </div>
+
+            <div class='metric'>
+            Density :
+            ${data.congestion.orbital_density}
+            </div>
+
+            <div class='metric'>
+            Risk :
+            ${data.congestion.future_risk}
+            </div>
+        `;
+
+        // =================================================
+        // MANEUVER
+        // =================================================
+
+        document.getElementById("maneuver").innerHTML = `
+
+            <div class='metric'>
+            Action :
+            ${data.maneuver.recommended_action}
+            </div>
+
+            <div class='metric'>
+            Delta-V :
+            ${data.maneuver.delta_v}
+            </div>
+
+            <div class='metric'>
+            Fuel :
+            ${data.maneuver.fuel_cost}
+            </div>
+
+            <div class='metric'>
+            Success :
+            ${data.maneuver.success_probability}
+            </div>
+        `;
+
+        // =================================================
+        // ANALYTICS
+        // =================================================
+
+        const latestCollision =
+        data.analytics.collision_history.slice(-1)[0] || 0;
+
+        const latestCongestion =
+        data.analytics.congestion_history.slice(-1)[0] || 0;
+
+        const latestCyber =
+        data.analytics.cyber_history.slice(-1)[0] || 0;
+
+        document.getElementById("analytics").innerHTML = `
+
+            <div class='metric'>
+            Collision Alerts :
+            ${latestCollision}
+            </div>
+
+            <div class='metric'>
+            Orbital Density :
+            ${latestCongestion}
+            </div>
+
+            <div class='metric'>
+            Cyber Severity :
+            ${latestCyber}
+            </div>
+        `;
+
+    }catch(err){
+
+        console.log("Render Error :", err);
+    }
+};
+
+</script>
+
+</body>
+</html>  -->
+
+
+
+
+<!-- IND   TESTING 222222222222222222222222 -->     <!-- successful manuever creation  
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Space Digital Twin</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Cesium.js"></script>
+
+<link
+href="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Widgets/widgets.css"
+rel="stylesheet"
+/>
+
+<style>
+
+html, body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:black;
+    font-family:Arial;
+}
+
+#cesiumContainer{
+    width:100%;
+    height:100%;
+}
+
+#dashboard{
+
+    position:absolute;
+    top:10px;
+    left:10px;
+
+    width:380px;
+    max-height:95vh;
+
+    overflow-y:auto;
+
+    background:rgba(0,0,0,0.82);
+
+    padding:15px;
+
+    border-radius:12px;
+
+    color:white;
+
+    z-index:999;
+
+    border:1px solid cyan;
+}
+
+.card{
+
+    background:rgba(255,255,255,0.05);
+
+    padding:10px;
+
+    border-radius:10px;
+
+    margin-bottom:12px;
+}
+
+.alert{
+    color:#ff5c5c;
+}
+
+.success{
+    color:#00ff99;
+}
+
+.warning{
+    color:orange;
+}
+
+.title{
+    color:cyan;
+}
+
+.metric{
+    font-size:14px;
+    margin-top:5px;
+}
+
+#status{
+    font-size:18px;
+    font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="dashboard">
+
+    <h2 class="title">🌍 Space Digital Twin</h2>
+
+    <div class="card">
+        <div id="time"></div>
+        <div id="status"></div>
+    </div>
+
+    <div class="card">
+        <h3>🚀 Space Traffic Prediction</h3>
+        <div id="collisions"></div>
+    </div>
+
+    <div class="card">
+        <h3>🛡️ Cyber Intrusion Detection</h3>
+        <div id="cyber"></div>
+    </div>
+
+    <div class="card">
+        <h3>🌌 Congestion Forecasting</h3>
+        <div id="congestion"></div>
+    </div>
+
+    <div class="card">
+        <h3>🤖 Autonomous Maneuver</h3>
+        <div id="maneuver"></div>
+    </div>
+
+    <div class="card">
+        <h3>📊 Live Analytics</h3>
+        <div id="analytics"></div>
+    </div>
+
+</div>
+
+<script>
+
+// =====================================================
+// VERY IMPORTANT FIX
+// =====================================================
+
+window.CESIUM_BASE_URL =
+"https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/";
+
+// =====================================================
+// CESIUM TOKEN
+// =====================================================
+
+Cesium.Ion.defaultAccessToken =
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMGFkN2UyZS05NThiLTQ1NDEtYmM1Mi0zY2RhNTk4YmMxYjUiLCJpZCI6NDMyNjc4LCJpc3MiOiJodHRwczovL2lvbi5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3NzkwMzA2NDB9.j8Q3Wdu4mqrdkycc1GQS4oho9O9xFZu2LPbPWwKsQ4o';
+
+
+// =====================================================
+// CREATE VIEWER
+// =====================================================
+
+const viewer = new Cesium.Viewer('cesiumContainer', {
+
+    animation:false,
+    timeline:false,
+    baseLayerPicker:false,
+    geocoder:false,
+    homeButton:false,
+    sceneModePicker:false,
+    navigationHelpButton:false,
+    fullscreenButton:false,
+    infoBox:false,
+    selectionIndicator:false,
+
+    imageryProvider:false,
+
+    baseLayer:false
+});
+
+// =====================================================
+// EARTH TEXTURE
+// =====================================================
+
+viewer.imageryLayers.addImageryProvider(
+
+    new Cesium.UrlTemplateImageryProvider({
+
+        url:
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+
+    })
+
+);
+
+// =====================================================
+// STABLE SETTINGS
+// =====================================================
+
+viewer.scene.globe.enableLighting = true;
+
+viewer.scene.skyAtmosphere.show = true;
+
+viewer.scene.fog.enabled = false;
+
+viewer.scene.globe.baseColor =
+Cesium.Color.BLACK;
+
+viewer.cesiumWidget.creditContainer.style.display = "none";
+
+// =====================================================
+// CAMERA VIEW
+// =====================================================
+
+viewer.camera.setView({
+
+    destination:
+    new Cesium.Cartesian3(
+        25000000,
+        25000000,
+        25000000
+    )
+});
+
+// =====================================================
+// STORAGE
+// =====================================================
+
+const satelliteEntities = {};
+const orbitEntities = {};
+
+// =====================================================
+// CREATE / UPDATE SATELLITE
+// =====================================================
+
+function updateSatellite(name, x, y, z, orbitPoints, danger=false){
+
+    const currentPosition =
+    new Cesium.Cartesian3(x, y, z);
+
+    // =================================================
+    // ORBIT PATH
+    // =================================================
+
+    let orbitCartesian = [];
+
+    orbitPoints.forEach(p => {
+
+        orbitCartesian.push(
+
+            new Cesium.Cartesian3(
+
+                p[0] * 1000,
+                p[1] * 1000,
+                p[2] * 1000
+
+            )
+        );
+    });
+
+    // =================================================
+    // CREATE SATELLITE
+    // =================================================
+
+    if(!satelliteEntities[name]){
+
+        satelliteEntities[name] = viewer.entities.add({
+
+            id:name,
+
+            position:currentPosition,
+
+            point:{
+
+                pixelSize: danger ? 12 : 7,
+
+                color: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN,
+
+                outlineColor: Cesium.Color.WHITE,
+
+                outlineWidth:2
+            },
+
+            label:{
+
+                text:name,
+
+                font:'11px monospace',
+
+                fillColor: danger
+                    ? Cesium.Color.RED
+                    : Cesium.Color.CYAN,
+
+                outlineColor:Cesium.Color.BLACK,
+
+                outlineWidth:2,
+
+                style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+
+                pixelOffset:new Cesium.Cartesian2(0,-20),
+
+                scale:0.6
+            }
+        });
+
+        // =================================================
+        // CREATE ORBIT
+        // =================================================
+
+        orbitEntities[name] = viewer.entities.add({
+
+            polyline:{
+
+                positions:orbitCartesian,
+
+                width:2,
+
+                material: danger
+                    ? Cesium.Color.RED.withAlpha(0.8)
+                    : Cesium.Color.CYAN.withAlpha(0.6)
+            }
+        });
+
+    }else{
+
+        // =================================================
+        // UPDATE SAT POSITION
+        // =================================================
+
+        satelliteEntities[name].position =
+        currentPosition;
+
+        satelliteEntities[name].point.color =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN;
+
+        satelliteEntities[name].label.fillColor =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN;
+
+        // =================================================
+        // UPDATE ORBIT PATH
+        // =================================================
+
+        orbitEntities[name].polyline.positions =
+        orbitCartesian;
+
+        orbitEntities[name].polyline.material =
+        danger
+        ? Cesium.Color.RED.withAlpha(0.8)
+        : Cesium.Color.CYAN.withAlpha(0.6);
+    }
+}
+
+// =====================================================
+// WEBSOCKET
+// =====================================================
+
+const socket =
+new WebSocket("ws://localhost:8000/ws");
+
+socket.onopen = () => {
+
+    console.log("WebSocket Connected");
+};
+
+socket.onerror = (err) => {
+
+    console.log("WebSocket Error", err);
+};
+
+socket.onclose = () => {
+
+    console.log("WebSocket Closed");
+};
+
+// =====================================================
+// RECEIVE DATA
+// =====================================================
+
+socket.onmessage = function(event){
+
+    try{
+
+        const data = JSON.parse(event.data);
+
+        // =================================================
+        // TIME
+        // =================================================
+
+        document.getElementById("time").innerHTML =
+        `⏱️ ${data.timestamp}`;
+
+        // =================================================
+        // STATUS
+        // =================================================
+
+        let statusColor = "lime";
+
+        if(data.digital_twin_status === "CRITICAL"){
+            statusColor = "red";
+        }
+        else if(data.digital_twin_status === "WARNING"){
+            statusColor = "orange";
+        }
+
+        document.getElementById("status").innerHTML = `
+            <span style="color:${statusColor}">
+            System Status :
+            ${data.digital_twin_status}
+            </span>
+        `;
+
+        // =================================================
+        // SATELLITES + ORBITS
+        // =================================================
+
+        data.satellites.forEach(sat => {
+
+            const x = sat.position[0] * 1000;
+            const y = sat.position[1] * 1000;
+            const z = sat.position[2] * 1000;
+
+            let danger = false;
+
+            data.collision_alerts.forEach(c => {
+
+                if(
+                    c.sat1 === sat.name ||
+                    c.sat2 === sat.name
+                ){
+                    danger = true;
+                }
+            });
+
+            updateSatellite(
+                sat.name,
+                x,
+                y,
+                z,
+                sat.orbit,
+                danger
+            );
+        });
+
+        // =================================================
+        // COLLISION ALERTS
+        // =================================================
+
+        let collisionHTML = "";
+
+        data.collision_alerts.forEach(c => {
+
+            collisionHTML += `
+                <div class='alert'>
+                ⚠️ ${c.sat1}<br>
+                ⚠️ ${c.sat2}<br>
+                Distance : ${c.distance} km<br>
+                Risk : ${c.risk}
+                </div><br>
+            `;
+        });
+
+        if(data.collision_alerts.length === 0){
+
+            collisionHTML =
+            "<div class='success'>No Collision Risk</div>";
+        }
+
+        document.getElementById("collisions").innerHTML =
+        collisionHTML;
+
+        // =================================================
+        // CYBER IDS
+        // =================================================
+
+        document.getElementById("cyber").innerHTML = `
+
+            <div class='metric'>
+            Attack :
+            ${data.cyber_alert.attack_detected}
+            </div>
+
+            <div class='metric'>
+            Type :
+            ${data.cyber_alert.attack_type}
+            </div>
+
+            <div class='metric'>
+            Severity :
+            ${data.cyber_alert.severity}/10
+            </div>
+
+            <div class='metric'>
+            Health :
+            ${data.cyber_alert.network_health}%
+            </div>
+        `;
+
+        // =================================================
+        // CONGESTION
+        // =================================================
+
+        document.getElementById("congestion").innerHTML = `
+
+            <div class='metric'>
+            Level :
+            ${data.congestion.congestion_level}
+            </div>
+
+            <div class='metric'>
+            Density :
+            ${data.congestion.orbital_density}
+            </div>
+
+            <div class='metric'>
+            Risk :
+            ${data.congestion.future_risk}
+            </div>
+        `;
+
+        // =================================================
+        // MANEUVER
+        // =================================================
+
+        document.getElementById("maneuver").innerHTML = `
+
+            <div class='metric'>
+            Action :
+            ${data.maneuver.recommended_action}
+            </div>
+
+            <div class='metric'>
+            Delta-V :
+            ${data.maneuver.delta_v}
+            </div>
+
+            <div class='metric'>
+            Fuel :
+            ${data.maneuver.fuel_cost}
+            </div>
+
+            <div class='metric'>
+            Success :
+            ${data.maneuver.success_probability}
+            </div>
+        `;
+
+        // =================================================
+        // ANALYTICS
+        // =================================================
+
+        const latestCollision =
+        data.analytics.collision_history.slice(-1)[0] || 0;
+
+        const latestCongestion =
+        data.analytics.congestion_history.slice(-1)[0] || 0;
+
+        const latestCyber =
+        data.analytics.cyber_history.slice(-1)[0] || 0;
+
+        document.getElementById("analytics").innerHTML = `
+
+            <div class='metric'>
+            Collision Alerts :
+            ${latestCollision}
+            </div>
+
+            <div class='metric'>
+            Orbital Density :
+            ${latestCongestion}
+            </div>
+
+            <div class='metric'>
+            Cyber Severity :
+            ${latestCyber}
+            </div>
+        `;
+
+    }catch(err){
+
+        console.log("Render Error :", err);
+    }
+};
+
+</script>
+
+</body>
+</html>-->
+
+
+
+
+
+<!-- COLLAB TESTING 1................. -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>AI Space Digital Twin</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Cesium.js"></script>
+
+<link
+href="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Widgets/widgets.css"
+rel="stylesheet"
+/>
+
+<style>
+
+html,body{
+    width:100%;
+    height:100%;
+    margin:0;
+    overflow:hidden;
+    background:black;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+#cesiumContainer{
+    width:100%;
+    height:100%;
+}
+
+#dashboard{
+
+    position:absolute;
+    top:10px;
+    left:10px;
+
+    width:390px;
+    max-height:95vh;
+
+    overflow-y:auto;
+
+    background:rgba(0,0,0,0.82);
+
+    border:1px solid cyan;
+
+    border-radius:15px;
+
+    padding:15px;
+
+    z-index:9999;
+
+    color:white;
+
+    backdrop-filter: blur(10px);
+}
+
+.card{
+
+    background:rgba(255,255,255,0.05);
+
+    border-radius:12px;
+
+    padding:12px;
+
+    margin-bottom:12px;
+
+    border:1px solid rgba(255,255,255,0.1);
+}
+
+.title{
+    color:cyan;
+    margin-top:0;
+}
+
+.metric{
+    margin-top:6px;
+    font-size:14px;
+}
+
+.success{
+    color:#00ff99;
+}
+
+.warning{
+    color:orange;
+}
+
+.danger{
+    color:#ff5555;
+}
+
+.info{
+    color:#00ccff;
+}
+
+#status{
+    font-size:18px;
+    font-weight:bold;
+}
+
+#popup{
+
+    position:absolute;
+
+    top:20px;
+    right:20px;
+
+    min-width:300px;
+
+    background:rgba(255,0,0,0.9);
+
+    color:white;
+
+    padding:15px;
+
+    border-radius:12px;
+
+    z-index:99999;
+
+    display:none;
+
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse{
+
+    0%{
+        transform:scale(1);
+    }
+
+    50%{
+        transform:scale(1.03);
+    }
+
+    100%{
+        transform:scale(1);
+    }
+}
+
+.pipeline-step{
+
+    margin-top:8px;
+
+    padding:7px;
+
+    border-radius:8px;
+
+    background:rgba(255,255,255,0.05);
+}
+
+.active-step{
+
+    border-left:4px solid cyan;
+
+    color:#00ffff;
+}
+
+.completed-step{
+
+    border-left:4px solid lime;
+
+    color:#00ff99;
+}
+
+.warning-step{
+
+    border-left:4px solid orange;
+
+    color:orange;
+}
+
+.danger-step{
+
+    border-left:4px solid red;
+
+    color:#ff5555;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="popup"></div>
+
+<div id="dashboard">
+
+    <h2 class="title">
+        🌍 AI Space Digital Twin
+    </h2>
+
+    <div class="card">
+
+        <div id="time"></div>
+        <div id="status"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h3 class="title">
+            🚀 Real-Time Pipeline
+        </h3>
+
+        <div id="pipeline"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h3 class="title">
+            ⚠️ Collision Prediction
+        </h3>
+
+        <div id="collisionBox"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h3 class="title">
+            🛡️ Cyber Risk Evaluation
+        </h3>
+
+        <div id="cyberBox"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h3 class="title">
+            🌌 Congestion Analysis
+        </h3>
+
+        <div id="congestionBox"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h3 class="title">
+            🤖 RL Maneuver Optimization
+        </h3>
+
+        <div id="maneuverBox"></div>
+
+    </div>
+
+    <div class="card">
+
+        <h3 class="title">
+            📊 Analytics
+        </h3>
+
+        <div id="analyticsBox"></div>
+
+    </div>
+
+</div>
+
+<script>
+
+// =====================================================
+// CESIUM TOKEN
+// =====================================================
+
+Cesium.Ion.defaultAccessToken =
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMGFkN2UyZS05NThiLTQ1NDEtYmM1Mi0zY2RhNTk4YmMxYjUiLCJpZCI6NDMyNjc4LCJpc3MiOiJodHRwczovL2lvbi5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3NzkwMzA2NDB9.j8Q3Wdu4mqrdkycc1GQS4oho9O9xFZu2LPbPWwKsQ4o";
+
+// =====================================================
+// VIEWER
+// =====================================================
+
+const viewer = new Cesium.Viewer("cesiumContainer",{
+
+    animation:false,
+    timeline:false,
+    baseLayerPicker:false,
+    geocoder:false,
+    homeButton:false,
+    sceneModePicker:false,
+    navigationHelpButton:false,
+    fullscreenButton:false,
+    infoBox:false,
+    selectionIndicator:false,
+
+    shouldAnimate:true
+});
+
+// =====================================================
+// REALISTIC EARTH
+// =====================================================
+
+viewer.scene.globe.enableLighting = true;
+
+viewer.scene.skyAtmosphere.show = true;
+
+viewer.scene.globe.depthTestAgainstTerrain = false;
+
+viewer.scene.fog.enabled = false;
+
+viewer.clock.multiplier = 50;
+viewer.clock.shouldAnimate = true;
+
+viewer.cesiumWidget.creditContainer.style.display = "none";
+
+// =====================================================
+// EARTH ROTATION
+// =====================================================
+
+// viewer.scene.postUpdate.addEventListener(function(scene,time){
+
+//     viewer.scene.camera.rotate(
+//         Cesium.Cartesian3.UNIT_Z,
+//         -0.00003
+//     );
+// });
+
+// =====================================================
+// CAMERA
+// =====================================================
+
+viewer.camera.setView({
+
+    destination:new Cesium.Cartesian3(
+        28000000,
+        28000000,
+        28000000
+    )
+});
+
+// =====================================================
+// STORAGE
+// =====================================================
+
+const satelliteEntities = {};
+const pathEntities = {};
+const dangerLines = [];
+
+// =====================================================
+// UPDATE SATELLITE
+// =====================================================
+
+function updateSatellite(
+    sat,
+    danger=false,
+    maneuver=false
+){
+
+    const x = sat.position[0] * 1000;
+    const y = sat.position[1] * 1000;
+    const z = sat.position[2] * 1000;
+
+    const position =
+    new Cesium.Cartesian3(x,y,z);
+
+    const futurePositions = (sat.future_path || sat.orbit || []).map(p => {
+
+        return new Cesium.Cartesian3(
+           p[0] * 1000,
+           p[1] * 1000,
+           p[2] * 1000
+        );
+    });
+
+    let color = Cesium.Color.CYAN;
+
+    if(danger){
+        color = Cesium.Color.RED;
+    }
+
+    if(maneuver){
+        color = Cesium.Color.YELLOW;
+    }
+
+    // =================================================
+    // SAT ENTITY
+    // =================================================
+
+    if(!satelliteEntities[sat.name]){
+
+        satelliteEntities[sat.name] =
+        viewer.entities.add({
+
+            id:sat.name,
+
+            position:position,
+
+            point:{
+
+                pixelSize: danger ? 11 : 6,
+
+                color:color,
+
+                outlineColor:Cesium.Color.WHITE,
+
+                outlineWidth:2
+            },
+
+            label:{
+
+                text:sat.name,
+
+                font:"11px monospace",
+
+                fillColor:color,
+
+                outlineColor:Cesium.Color.BLACK,
+
+                outlineWidth:2,
+
+                style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+
+                pixelOffset:
+                new Cesium.Cartesian2(0,-18),
+
+                scale:0.6
+            }
+        });
+
+    }else{
+
+        satelliteEntities[sat.name].position =
+        position;
+
+        satelliteEntities[sat.name].point.color =
+        color;
+
+        satelliteEntities[sat.name].label.fillColor =
+        color;
+    }
+
+    // =================================================
+    // ORBIT PATH
+    // =================================================
+
+    if(!pathEntities[sat.name]){
+
+        pathEntities[sat.name] =
+        viewer.entities.add({
+
+            polyline:{
+
+                positions:futurePositions,
+
+                width:2,
+
+                material:
+                danger
+                ? Cesium.Color.RED
+                : Cesium.Color.CYAN.withAlpha(0.6)
+            }
+        });
+
+    }else{
+
+        pathEntities[sat.name].polyline.positions =
+        futurePositions;
+
+        pathEntities[sat.name].polyline.material =
+        danger
+        ? Cesium.Color.RED
+        : Cesium.Color.CYAN.withAlpha(0.6);
+    }
+}
+
+// =====================================================
+// ALERT POPUP
+// =====================================================
+
+function showPopup(message,color){
+
+    const popup =
+    document.getElementById("popup");
+
+    popup.style.display = "block";
+
+    popup.style.background = color;
+
+    popup.innerHTML = message;
+
+    setTimeout(()=>{
+
+        popup.style.display = "none";
+
+    },5000);
+}
+
+// =====================================================
+// PIPELINE UI
+// =====================================================
+
+function updatePipeline(data){
+
+    const steps = [
+
+        "Real Orbit Propagation",
+        "Future Orbit Forecast",
+        "Conjunction Prediction",
+        "Collision Probability",
+        "Cyber Risk Evaluation",
+        "Congestion Analysis",
+        "RL Maneuver Optimization",
+        "Apply Delta-v",
+        "Recalculate Orbit",
+        "Verify Safe Distance",
+        "Update Digital Twin",
+        "Autonomous Avoidance Complete"
+    ];
+
+    let html = "";
+
+    steps.forEach((step,index)=>{
+
+        let className = "pipeline-step completed-step";
+
+        if(
+            step.includes("Collision")
+            &&
+            data.collision_alerts.length > 0
+        ){
+            className = "pipeline-step danger-step";
+        }
+
+        if(
+            step.includes("Cyber")
+            &&
+            data.cyber_alert.attack_detected
+        ){
+            className = "pipeline-step warning-step";
+        }
+
+        html += `
+        <div class="${className}">
+            ✔ ${step}
+        </div>
+        `;
+    });
+
+    document.getElementById("pipeline").innerHTML =
+    html;
+}
+
+// =====================================================
+// WEBSOCKET
+// =====================================================
+
+const socket =
+new WebSocket("ws://localhost:8000/ws");
+
+// =====================================================
+// ON MESSAGE
+// =====================================================
+
+socket.onmessage = function(event){
+
+    const data = JSON.parse(event.data);
+
+    // =================================================
+    // TIME
+    // =================================================
+
+    document.getElementById("time").innerHTML = `
+        ⏱️ ${data.timestamp}
+    `;
+
+    // =================================================
+    // STATUS
+    // =================================================
+
+    let statusColor = "lime";
+
+    if(data.digital_twin_status === "CRITICAL"){
+        statusColor = "red";
+    }
+
+    else if(data.digital_twin_status === "WARNING"){
+        statusColor = "orange";
+    }
+
+    document.getElementById("status").innerHTML = `
+        <span style="color:${statusColor}">
+        ${data.digital_twin_status}
+        </span>
+    `;
+
+    // =================================================
+    // REMOVE OLD DANGER LINES
+    // =================================================
+
+    dangerLines.forEach(line => {
+
+        viewer.entities.remove(line);
+
+    });
+
+    dangerLines.length = 0;
+
+    // =================================================
+    // SATELLITE UPDATE
+    // =================================================
+
+    data.satellites.forEach(sat => {
+
+        let danger = false;
+        let maneuver = false;
+
+        data.collision_alerts.forEach(c => {
+
+            if(
+                c.sat1 === sat.name ||
+                c.sat2 === sat.name
+            ){
+                danger = true;
+            }
+        });
+
+        if(
+            data.maneuver.target_satellite ===
+            sat.name
+        ){
+            maneuver = true;
+        }
+
+        updateSatellite(
+            sat,
+            danger,
+            maneuver
+        );
+    });
+
+    // =================================================
+    // COLLISION BOX
+    // =================================================
+
+    let collisionHTML = "";
+
+    if(data.collision_alerts.length === 0){
+
+        collisionHTML = `
+        <div class="success">
+            No predicted collision
+        </div>
+        `;
+    }
+
+    data.collision_alerts.forEach(c => {
+
+        collisionHTML += `
+
+        <div class="danger metric">
+
+            ⚠️ ${c.sat1}<br>
+            ⚠️ ${c.sat2}<br><br>
+
+            Distance :
+            ${c.distance || c.distance_km} km<br>
+
+            Probability :
+            ${c.collision_probability || "N/A"}%%<br>
+
+            Time To Collision :
+            ${c.time_to_collision_min || "Unknown"} min min<br>
+
+            Risk :
+            ${c.risk}<br>
+
+        </div>
+
+        `;
+
+        // =============================================
+        // DRAW DANGER LINE
+        // =============================================
+
+        const sat1 =
+        data.satellites.find(
+            s => s.name === c.sat1
+        );
+
+        const sat2 =
+        data.satellites.find(
+            s => s.name === c.sat2
+        );
+
+        if(sat1 && sat2){
+
+            const line =
+            viewer.entities.add({
+
+                polyline:{
+
+                    positions:[
+
+                        new Cesium.Cartesian3(
+                            sat1.position[0]*1000,
+                            sat1.position[1]*1000,
+                            sat1.position[2]*1000
+                        ),
+
+                        new Cesium.Cartesian3(
+                            sat2.position[0]*1000,
+                            sat2.position[1]*1000,
+                            sat2.position[2]*1000
+                        )
+                    ],
+
+                    width:4,
+
+                    material:
+                    Cesium.Color.RED
+                }
+            });
+
+            dangerLines.push(line);
+        }
+
+        // =============================================
+        // POPUP ALERT
+        // =============================================
+
+        showPopup(
+
+            `⚠️ COLLISION PREDICTED<br>
+            ${c.sat1} ↔ ${c.sat2}<br>
+            Distance : ${c.distance_km} km<br>
+            AI Maneuver Activated`,
+
+            "rgba(255,0,0,0.9)"
+        );
+    });
+
+    document.getElementById("collisionBox").innerHTML =
+    collisionHTML;
+
+    // =================================================
+    // CYBER BOX
+    // =================================================
+
+    document.getElementById("cyberBox").innerHTML = `
+
+        <div class="metric">
+
+            Attack Detected :
+            ${data.cyber_alert.attack_detected}
+
+        </div>
+
+        <div class="metric">
+
+            Type :
+            ${data.cyber_alert.attack_type}
+
+        </div>
+
+        <div class="metric">
+
+            Severity :
+            ${data.cyber_alert.severity}/10
+
+        </div>
+
+        <div class="metric">
+
+            Network Health :
+            ${data.cyber_alert.network_health}%
+
+        </div>
+
+    `;
+
+    // =================================================
+    // CONGESTION
+    // =================================================
+
+    document.getElementById("congestionBox").innerHTML = `
+
+        <div class="metric">
+
+            Congestion Level :
+            ${data.congestion.congestion_level}
+
+        </div>
+
+        <div class="metric">
+
+            Orbital Density :
+            ${data.congestion.orbital_density}
+
+        </div>
+
+        <div class="metric">
+
+            Future Risk :
+            ${data.congestion.future_risk}
+
+        </div>
+
+    `;
+
+    // =================================================
+    // MANEUVER
+    // =================================================
+
+    document.getElementById("maneuverBox").innerHTML = `
+
+        <div class="metric">
+
+            Target Satellite :
+            ${data.maneuver.target_satellite}
+
+        </div>
+
+        <div class="metric">
+
+            Recommended Action :
+            ${data.maneuver.recommended_action}
+
+        </div>
+
+        <div class="metric">
+
+            Delta-V :
+            ${data.maneuver.delta_v}
+
+        </div>
+
+        <div class="metric">
+
+            Fuel Cost :
+            ${data.maneuver.fuel_cost}
+
+        </div>
+
+        <div class="metric">
+
+            Success Probability :
+            ${data.maneuver.success_probability}
+
+        </div>
+
+        <div class="metric success">
+
+            Autonomous Avoidance :
+            ACTIVE
+
+        </div>
+
+    `;
+
+    // =================================================
+    // ANALYTICS
+    // =================================================
+
+    document.getElementById("analyticsBox").innerHTML = `
+
+        <div class="metric">
+
+            Collision Alerts :
+            ${data.analytics.collision_history.slice(-1)[0] || 0}
+
+        </div>
+
+        <div class="metric">
+
+            Congestion :
+            ${data.analytics.congestion_history.slice(-1)[0] || 0}
+
+        </div>
+
+        <div class="metric">
+
+            Cyber Severity :
+            ${data.analytics.cyber_history.slice(-1)[0] || 0}
+
+        </div>
+
+        <div class="metric info">
+
+            Active Satellites :
+            ${data.satellites.length}
+
+        </div>
+
+    `;
+
+    // =================================================
+    // PIPELINE
+    // =================================================
+
+    updatePipeline(data);
+};
+
+// =====================================================
+// SOCKET EVENTS
+// =====================================================
+
+socket.onopen = () => {
+
+    console.log("WebSocket Connected");
+};
+
+socket.onerror = (err) => {
+
+    console.log("Socket Error",err);
+};
+
+socket.onclose = () => {
+
+    console.log("Socket Closed");
+};
+
+</script>
+
+</body>
+</html>

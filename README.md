@@ -2,7 +2,7 @@ Dataset
 This project uses the following datasets:
 
 1. CICIDS2017 Dataset  
-   Source: https://www.unb.ca/cic/datasets/ids-2017.html
+   Source: https://www.unb.ca/cic/datasets/cic-unsw-nb15.html
 
 2. Extended Attack Simulation (EAS) Dataset  
    Kaggle: https://www.kaggle.com/datasets/yourname/space-cyber-ids-dataset

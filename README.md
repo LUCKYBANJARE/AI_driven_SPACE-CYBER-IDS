@@ -5,7 +5,6 @@ This project uses the following datasets:
    Source: https://www.unb.ca/cic/datasets/cic-unsw-nb15.html
 
 2. Extended Attack Simulation (EAS) Dataset  
-   Kaggle: https://www.kaggle.com/datasets/yourname/space-cyber-ids-dataset
 
 3.TLE data from Oneweb and Starlink
   
